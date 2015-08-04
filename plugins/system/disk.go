@@ -25,8 +25,8 @@ func (s *DiskStats) Gather(acc plugins.Accumulator) error {
 	for _, du := range disks {
 		tags := map[string]string{
 			"path": du.Path,
+			"fstype": du.Fstype,
 		}
-
 		acc.Add("total", du.Total, tags)
 		acc.Add("free", du.Free, tags)
 		acc.Add("used", du.Total-du.Free, tags)
