@@ -29,7 +29,7 @@ func (bp *BatchPoints) Add(measurement string, val interface{}, tags map[string]
 	measurement = bp.Prefix + measurement
 
 	if bp.Config != nil {
-		if !bp.Config.ShouldPass(measurement) {
+		if !bp.Config.ShouldPass(measurement, tags) {
 			return
 		}
 	}
@@ -67,7 +67,7 @@ func (bp *BatchPoints) AddValuesWithTime(
 	measurement = bp.Prefix + measurement
 
 	if bp.Config != nil {
-		if !bp.Config.ShouldPass(measurement) {
+		if !bp.Config.ShouldPass(measurement, tags) {
 			return
 		}
 	}

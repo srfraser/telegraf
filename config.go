@@ -45,16 +45,24 @@ func (c *Config) Plugins() map[string]*ast.Table {
 	return c.plugins
 }
 
+type TagFilter struct {
+	Name   string
+	Filter []string
+}
+
 type ConfiguredPlugin struct {
 	Name string
 
 	Drop []string
 	Pass []string
 
+	TagDrop []TagFilter
+	TagPass []TagFilter
+
 	Interval time.Duration
 }
 
-func (cp *ConfiguredPlugin) ShouldPass(measurement string) bool {
+func (cp *ConfiguredPlugin) ShouldPass(measurement string, tags map[string]string) bool {
 	if cp.Pass != nil {
 		for _, pat := range cp.Pass {
 			if strings.HasPrefix(measurement, pat) {
@@ -72,6 +80,32 @@ func (cp *ConfiguredPlugin) ShouldPass(measurement string) bool {
 			}
 		}
 
+		return true
+	}
+
+	if cp.TagPass != nil {
+		for _, pat := range cp.TagPass {
+			if tagval, ok := tags[pat.Name]; ok {
+				for _, filter := range pat.Filter {
+					if filter == tagval {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
+
+	if cp.TagDrop != nil {
+		for _, pat := range cp.TagDrop {
+			if tagval, ok := tags[pat.Name]; ok {
+				for _, filter := range pat.Filter {
+					if filter == tagval {
+						return false
+					}
+				}
+			}
+		}
 		return true
 	}
 
@@ -128,9 +162,47 @@ func (c *Config) ApplyPlugin(name string, v interface{}) (*ConfiguredPlugin, err
 			}
 		}
 
+		if node, ok := tbl.Fields["tagpass"]; ok {
+			if subtbl, ok := node.(*ast.Table); ok {
+				for name, val := range subtbl.Fields {
+					if kv, ok := val.(*ast.KeyValue); ok {
+						tagfilter := &TagFilter{Name: name}
+						if ary, ok := kv.Value.(*ast.Array); ok {
+							for _, elem := range ary.Value {
+								if str, ok := elem.(*ast.String); ok {
+									tagfilter.Filter = append(tagfilter.Filter, str.Value)
+								}
+							}
+						}
+						cp.TagPass = append(cp.TagPass, *tagfilter)
+					}
+				}
+			}
+		}
+
+		if node, ok := tbl.Fields["tagdrop"]; ok {
+			if subtbl, ok := node.(*ast.Table); ok {
+				for name, val := range subtbl.Fields {
+					if kv, ok := val.(*ast.KeyValue); ok {
+						tagfilter := &TagFilter{Name: name}
+						if ary, ok := kv.Value.(*ast.Array); ok {
+							for _, elem := range ary.Value {
+								if str, ok := elem.(*ast.String); ok {
+									tagfilter.Filter = append(tagfilter.Filter, str.Value)
+								}
+							}
+						}
+						cp.TagDrop = append(cp.TagDrop, *tagfilter)
+					}
+				}
+			}
+		}
+
 		delete(tbl.Fields, "drop")
 		delete(tbl.Fields, "pass")
 		delete(tbl.Fields, "interval")
+		delete(tbl.Fields, "tagdrop")
+		delete(tbl.Fields, "tagpass")
 		return cp, toml.UnmarshalTable(tbl, v)
 	}
 
