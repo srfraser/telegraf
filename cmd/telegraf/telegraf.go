@@ -19,7 +19,10 @@ var fVersion = flag.Bool("version", false, "display the version")
 var fSampleConfig = flag.Bool("sample-config", false, "print out full sample configuration")
 var fPidfile = flag.String("pidfile", "", "file to write our pid to")
 
+// Telegraf version
 var Version = "unreleased"
+
+// Telegraf commit
 var Commit = ""
 
 func main() {
@@ -61,6 +64,10 @@ func main() {
 	plugins, err := ag.LoadPlugins()
 	if err != nil {
 		log.Fatal(err)
+	}
+	if len(plugins) == 0 {
+		log.Printf("Error: no plugins found, did you provide a config file?")
+		os.Exit(1)
 	}
 
 	if *fTest {

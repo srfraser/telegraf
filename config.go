@@ -13,10 +13,12 @@ import (
 	"github.com/naoina/toml/ast"
 )
 
+// Duration just wraps time.Duration
 type Duration struct {
 	time.Duration
 }
 
+// UnmarshalTOML parses the duration from the TOML config file
 func (d *Duration) UnmarshalTOML(b []byte) error {
 	dur, err := time.ParseDuration(string(b[1 : len(b)-1]))
 	if err != nil {
@@ -28,6 +30,9 @@ func (d *Duration) UnmarshalTOML(b []byte) error {
 	return nil
 }
 
+// Config specifies the URL/user/password for the database that telegraf
+// will be logging to, as well as all the plugins that the user has
+// specified
 type Config struct {
 	URL       string
 	Username  string
@@ -41,15 +46,19 @@ type Config struct {
 	plugins map[string]*ast.Table
 }
 
+// Plugins returns the configured plugins as a map of name -> plugin toml
 func (c *Config) Plugins() map[string]*ast.Table {
 	return c.plugins
 }
 
+// The name of a tag, and the values on which to filter
 type TagFilter struct {
 	Name   string
 	Filter []string
 }
 
+// ConfiguredPlugin containing a name, interval, and drop/pass prefix lists
+// Also lists the tags to filter
 type ConfiguredPlugin struct {
 	Name string
 
@@ -62,6 +71,7 @@ type ConfiguredPlugin struct {
 	Interval time.Duration
 }
 
+// ShouldPass returns true if the metric should pass, false if should drop
 func (cp *ConfiguredPlugin) ShouldPass(measurement string, tags map[string]string) bool {
 	if cp.Pass != nil {
 		for _, pat := range cp.Pass {
@@ -112,6 +122,7 @@ func (cp *ConfiguredPlugin) ShouldPass(measurement string, tags map[string]strin
 	return true
 }
 
+// ApplyAgent loads the toml config into the given interface
 func (c *Config) ApplyAgent(v interface{}) error {
 	if c.agent != nil {
 		return toml.UnmarshalTable(c.agent, v)
@@ -120,6 +131,9 @@ func (c *Config) ApplyAgent(v interface{}) error {
 	return nil
 }
 
+// ApplyPlugin takes defined plugin names and applies them to the given
+// interface, returning a ConfiguredPlugin object in the end that can
+// be inserted into a runningPlugin by the agent.
 func (c *Config) ApplyPlugin(name string, v interface{}) (*ConfiguredPlugin, error) {
 	cp := &ConfiguredPlugin{Name: name}
 
@@ -209,10 +223,11 @@ func (c *Config) ApplyPlugin(name string, v interface{}) (*ConfiguredPlugin, err
 	return cp, nil
 }
 
+// PluginsDeclared returns the name of all plugins declared in the config.
 func (c *Config) PluginsDeclared() []string {
 	var plugins []string
 
-	for name, _ := range c.plugins {
+	for name := range c.plugins {
 		plugins = append(plugins, name)
 	}
 
@@ -221,12 +236,14 @@ func (c *Config) PluginsDeclared() []string {
 	return plugins
 }
 
+// DefaultConfig returns an empty default configuration
 func DefaultConfig() *Config {
 	return &Config{}
 }
 
-var ErrInvalidConfig = errors.New("invalid configuration")
+var errInvalidConfig = errors.New("invalid configuration")
 
+// LoadConfig loads the given config file and returns a *Config pointer
 func LoadConfig(path string) (*Config, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -245,7 +262,7 @@ func LoadConfig(path string) (*Config, error) {
 	for name, val := range tbl.Fields {
 		subtbl, ok := val.(*ast.Table)
 		if !ok {
-			return nil, ErrInvalidConfig
+			return nil, errInvalidConfig
 		}
 
 		switch name {
@@ -264,6 +281,8 @@ func LoadConfig(path string) (*Config, error) {
 	return c, nil
 }
 
+// ListTags returns a string of tags specified in the config,
+// line-protocol style
 func (c *Config) ListTags() string {
 	var tags []string
 
@@ -343,12 +362,13 @@ database = "telegraf" # required.
 
 `
 
+// PrintSampleConfig prints the sample config!
 func PrintSampleConfig() {
 	fmt.Printf(header)
 
 	var names []string
 
-	for name, _ := range plugins.Plugins {
+	for name := range plugins.Plugins {
 		names = append(names, name)
 	}
 
